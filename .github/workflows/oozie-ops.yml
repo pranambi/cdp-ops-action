@@ -1,5 +1,5 @@
 name: Oozie Operations
-run-name: "${{ github.event.inputs.operation }} | ${{ github.event.inputs.job_id }} | by ${{ github.actor }}"
+run-name: "[${{ github.event.inputs.environment }}] ${{ github.event.inputs.operation }} | ${{ github.event.inputs.job_id }} | by ${{ github.actor }}"
 
 on:
   workflow_dispatch:
@@ -22,6 +22,14 @@ on:
         description: 'Node name (required only for restart_failed_node)'
         required: false
         type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'test-deploy'
+        type: choice
+        options:
+          - test-deploy
+          - prod
 
 permissions:
   contents: write
