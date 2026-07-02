@@ -57,6 +57,7 @@ jobs:
     needs: validate
     if: contains(fromJSON('["kill", "restart"]'), github.event.inputs.operation)
     environment: cdp-production
+    timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
       - name: Approval granted
