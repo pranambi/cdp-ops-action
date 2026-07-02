@@ -135,7 +135,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash
           git pull --rebase origin main
+          git stash pop
           git add audit/audit_log.csv
           git diff --staged --quiet || git commit -m "audit: ${{ github.event.inputs.operation }} on ${{ github.event.inputs.job_id }} by ${{ github.actor }}"
           git push
