@@ -1,8 +1,7 @@
 timestamp,operation,job_id,node_name,triggered_by,status
-2026-07-02 14:03:03 UTC,kill,id23,N/A,pranambi,success
-2026-07-02 14:10:34 UTC,kill,random,N/A,pranambi,failure
 2026-07-02 14:11:29 UTC,kill,0000001-240101000000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 15:23:58 UTC,kill,0000002-240615120000000-oozie-oozi-C,N/A,pranambi,success
 2026-07-02 16:32:13 UTC,restart,0000001-240101000000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 20:20:04 UTC,kill,0000003-240703120000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 20:28:13 UTC,kill,0000001-240101000000000-oozie-oozi-W,N/A,pranambi,success
+2026-07-02 20:39:51 UTC,test-deploy,resume,0000007-260703120000000-oozie-oozi-W,N/A,pranambi,success
