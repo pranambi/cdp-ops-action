@@ -14,14 +14,6 @@ on:
           - resume
           - restart
           - restart_failed_node
-      job_id:
-        description: 'Oozie Job ID (e.g. 0000001-240101000000000-oozie-oozi-W)'
-        required: true
-        type: string
-      node_name:
-        description: 'Node name (required only for restart_failed_node)'
-        required: false
-        type: string
       environment:
         description: 'Target environment'
         required: true
@@ -30,6 +22,14 @@ on:
         options:
           - test-deploy
           - prod
+      job_id:
+        description: 'Oozie Job ID (e.g. 0000001-240101000000000-oozie-oozi-W)'
+        required: true
+        type: string
+      node_name:
+        description: 'Node name (required only for restart_failed_node)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -133,10 +133,20 @@ jobs:
       - name: Write audit log
         if: always()
         run: |
+          MAX_ROWS=6
           mkdir -p audit
+          if [ ! -f audit/audit_log.csv ]; then
+            echo "timestamp,environment,operation,job_id,node_name,triggered_by,status" > audit/audit_log.csv
+          fi
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
-          echo "$TIMESTAMP,${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS" >> audit/audit_log.csv
+          echo "$TIMESTAMP,${{ github.event.inputs.environment }},${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS" >> audit/audit_log.csv
+          TOTAL=$(wc -l < audit/audit_log.csv)
+          if [ "$TOTAL" -gt "$((MAX_ROWS + 1))" ]; then
+            head -1 audit/audit_log.csv > audit/audit_log.csv.tmp
+            tail -n "$MAX_ROWS" audit/audit_log.csv >> audit/audit_log.csv.tmp
+            mv audit/audit_log.csv.tmp audit/audit_log.csv
+          fi
 
       - name: Commit audit log
         if: always()
