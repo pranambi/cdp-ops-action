@@ -1,7 +1,7 @@
 timestamp,environment,operation,job_id,node_name,triggered_by,status
-2026-07-02 20:20:04 UTC,unknown,kill,0000003-240703120000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 20:28:13 UTC,unknown,kill,0000001-240101000000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 20:39:51 UTC,Test-deploy,resume,0000007-260703120000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 20:55:06 UTC,Prod,kill,0000007-260703120000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 21:02:43 UTC,Test-deploy,Suspend,0000007-260703120000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 21:09:29 UTC,Prod,Kill,0000009-260703120000000-oozie-oozi-W,xxxx,pranambi,success
+2026-07-02 21:14:57 UTC,Prod,Kill,0000009-260703120000000-oozie-oozi-W,xxx,pranambi,success
