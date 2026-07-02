@@ -22,11 +22,18 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   oozie-operation:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
       - name: Validate inputs
         run: |
           if [ "${{ github.event.inputs.operation }}" = "restart_failed_node" ] && [ -z "${{ github.event.inputs.node_name }}" ]; then
@@ -81,3 +88,20 @@ jobs:
           echo "Node      : ${{ github.event.inputs.node_name || 'N/A' }}"
           echo "Triggered by: ${{ github.actor }}"
           echo "================================"
+
+      - name: Write audit log
+        if: always()
+        run: |
+          mkdir -p audit
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          STATUS="${{ job.status }}"
+          echo "$TIMESTAMP,${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS" >> audit/audit_log.csv
+
+      - name: Commit audit log
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add audit/audit_log.csv
+          git diff --staged --quiet || git commit -m "audit: ${{ github.event.inputs.operation }} on ${{ github.event.inputs.job_id }} by ${{ github.actor }}"
+          git push
