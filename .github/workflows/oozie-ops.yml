@@ -130,32 +130,33 @@ jobs:
           echo "Triggered by: ${{ github.actor }}"
           echo "================================"
 
-      - name: Write audit log
+      - name: Update audit/audit_log.csv
         if: always()
         run: |
           MAX_ROWS=6
-          mkdir -p audit
-          if [ ! -f audit/audit_log.csv ]; then
-            echo "timestamp,environment,operation,job_id,node_name,triggered_by,status" > audit/audit_log.csv
-          fi
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
-          echo "$TIMESTAMP,${{ github.event.inputs.environment }},${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS" >> audit/audit_log.csv
-          TOTAL=$(wc -l < audit/audit_log.csv)
-          if [ "$TOTAL" -gt "$((MAX_ROWS + 1))" ]; then
-            head -1 audit/audit_log.csv > audit/audit_log.csv.tmp
-            tail -n "$MAX_ROWS" audit/audit_log.csv >> audit/audit_log.csv.tmp
-            mv audit/audit_log.csv.tmp audit/audit_log.csv
-          fi
+          NEW_ENTRY="$TIMESTAMP,${{ github.event.inputs.environment }},${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS"
 
-      - name: Commit audit log
-        if: always()
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git stash
-          git pull --rebase origin main
-          git stash pop
-          git add audit/audit_log.csv
-          git diff --staged --quiet || git commit -m "audit: ${{ github.event.inputs.operation }} on ${{ github.event.inputs.job_id }} by ${{ github.actor }}"
-          git push
+
+          for i in 1 2 3; do
+            git fetch origin main
+            git checkout origin/main -- audit/audit_log.csv 2>/dev/null || echo "timestamp,environment,operation,job_id,node_name,triggered_by,status" > audit/audit_log.csv
+
+            echo "$NEW_ENTRY" >> audit/audit_log.csv
+
+            TOTAL=$(wc -l < audit/audit_log.csv)
+            if [ "$TOTAL" -gt "$((MAX_ROWS + 1))" ]; then
+              head -1 audit/audit_log.csv > audit/audit_log.csv.tmp
+              tail -n "$MAX_ROWS" audit/audit_log.csv >> audit/audit_log.csv.tmp
+              mv audit/audit_log.csv.tmp audit/audit_log.csv
+            fi
+
+            git add audit/audit_log.csv
+            git commit -m "audit: ${{ github.event.inputs.operation }} on ${{ github.event.inputs.job_id }} by ${{ github.actor }}"
+            git push origin main && break
+            echo "Push conflict, retrying ($i/3)..."
+            git reset HEAD~1
+          done
