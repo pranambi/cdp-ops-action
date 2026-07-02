@@ -4,3 +4,4 @@ timestamp,operation,job_id,node_name,triggered_by,status
 2026-07-02 14:11:29 UTC,kill,0000001-240101000000000-oozie-oozi-W,N/A,pranambi,success
 2026-07-02 15:23:58 UTC,kill,0000002-240615120000000-oozie-oozi-C,N/A,pranambi,success
 2026-07-02 16:32:13 UTC,restart,0000001-240101000000000-oozie-oozi-W,N/A,pranambi,success
+2026-07-02 20:20:04 UTC,kill,0000003-240703120000000-oozie-oozi-W,N/A,pranambi,success
