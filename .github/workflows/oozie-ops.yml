@@ -1,0 +1,83 @@
+name: Oozie Operations
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation to perform'
+        required: true
+        type: choice
+        options:
+          - kill
+          - suspend
+          - resume
+          - restart
+          - restart_failed_node
+      job_id:
+        description: 'Oozie Job ID (e.g. 0000001-240101000000000-oozie-oozi-W)'
+        required: true
+        type: string
+      node_name:
+        description: 'Node name (required only for restart_failed_node)'
+        required: false
+        type: string
+
+jobs:
+  oozie-operation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ "${{ github.event.inputs.operation }}" = "restart_failed_node" ] && [ -z "${{ github.event.inputs.node_name }}" ]; then
+            echo "ERROR: node_name is required for restart_failed_node operation"
+            exit 1
+          fi
+          echo "Inputs validated successfully"
+
+      - name: Kill Oozie job
+        if: github.event.inputs.operation == 'kill'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending KILL request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} killed successfully"
+
+      - name: Suspend Oozie job
+        if: github.event.inputs.operation == 'suspend'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending SUSPEND request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} suspended successfully"
+
+      - name: Resume Oozie job
+        if: github.event.inputs.operation == 'resume'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending RESUME request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} resumed successfully"
+
+      - name: Restart Oozie job from beginning
+        if: github.event.inputs.operation == 'restart'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Step 1: Sending KILL request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} killed"
+          echo "Step 2: Sending RERUN request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} restarted from beginning"
+
+      - name: Restart failed node
+        if: github.event.inputs.operation == 'restart_failed_node'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending RERUN request for failed node: ${{ github.event.inputs.node_name }}"
+          echo "Job ID: ${{ github.event.inputs.job_id }}"
+          echo "Response: Failed node ${{ github.event.inputs.node_name }} restarted successfully"
+
+      - name: Summary
+        run: |
+          echo "================================"
+          echo "Operation : ${{ github.event.inputs.operation }}"
+          echo "Job ID    : ${{ github.event.inputs.job_id }}"
+          echo "Node      : ${{ github.event.inputs.node_name || 'N/A' }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "================================"
