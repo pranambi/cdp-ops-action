@@ -42,6 +42,16 @@ jobs:
           fi
           echo "Inputs validated successfully"
 
+      - name: Print approval summary
+        run: |
+          echo "## Approval Request Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Operation | **${{ github.event.inputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Job ID | \`${{ github.event.inputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node | ${{ github.event.inputs.node_name || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Requested by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+
   request-approval:
     needs: validate
     if: contains(fromJSON('["kill", "restart"]'), github.event.inputs.operation)
