@@ -36,6 +36,11 @@ jobs:
 
       - name: Validate inputs
         run: |
+          if [[ ! "${{ github.event.inputs.job_id }}" =~ ^[0-9]+-[0-9]+-oozie-oozi-[WCB]$ ]]; then
+            echo "ERROR: Invalid Oozie Job ID format"
+            echo "Expected format: 0000001-240101000000000-oozie-oozi-W"
+            exit 1
+          fi
           if [ "${{ github.event.inputs.operation }}" = "restart_failed_node" ] && [ -z "${{ github.event.inputs.node_name }}" ]; then
             echo "ERROR: node_name is required for restart_failed_node operation"
             exit 1
