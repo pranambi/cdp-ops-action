@@ -1,4 +1,5 @@
 name: Oozie Operations
+run-name: "${{ github.event.inputs.operation }} | ${{ github.event.inputs.job_id }} | by ${{ github.actor }}"
 
 on:
   workflow_dispatch:
