@@ -1,0 +1,3 @@
+timestamp,environment,operation,job_id,node_name,triggered_by,status
+2026-07-02 20:39:51 UTC,Test-deploy,resume,0000007-260703120000000-oozie-oozi-W,N/A,pranambi,success
+2026-07-02 21:02:43 UTC,Test-deploy,Suspend,0000007-260703120000000-oozie-oozi-W,N/A,pranambi,success
