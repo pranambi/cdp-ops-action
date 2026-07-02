@@ -130,7 +130,7 @@ jobs:
           echo "Triggered by: ${{ github.actor }}"
           echo "================================"
 
-      - name: Commit audit log
+      - name: Update audit/audit_log.csv
         if: always()
         run: |
           MAX_ROWS=6
