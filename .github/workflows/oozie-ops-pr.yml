@@ -41,6 +41,16 @@ jobs:
 
       - name: Validate inputs
         run: |
+          ALLOWED="operation job_id node_name reason"
+          UNKNOWN=$(grep -E '^[a-zA-Z_]+:' "${{ steps.request.outputs.file }}" | awk -F: '{print $1}' | tr -d ' ' | while read KEY; do
+            echo "$ALLOWED" | grep -qw "$KEY" || echo "$KEY"
+          done)
+          if [ -n "$UNKNOWN" ]; then
+            echo "ERROR: Unknown field(s) in request.yaml: $UNKNOWN"
+            echo "Allowed fields: $ALLOWED"
+            exit 1
+          fi
+
           if [[ ! "${{ steps.request.outputs.job_id }}" =~ ^[0-9]+-[0-9]+-oozie-oozi-[WCB]$ ]]; then
             echo "ERROR: Invalid Oozie Job ID format"
             echo "Expected format: 0000001-240101000000000-oozie-oozi-W"
