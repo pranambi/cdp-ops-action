@@ -37,16 +37,27 @@ jobs:
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Script | \`${{ steps.script.outputs.name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run as user | \`${{ steps.runas.outputs.user }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered by merge from | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Detect run-as user
+        id: runas
+        run: |
+          USER=$(grep '^# RUN_AS:' ${{ steps.script.outputs.file }} | awk '{print $3}' | tr -d '[:space:]')
+          if [ -z "$USER" ]; then
+            USER=$(whoami)
+          fi
+          echo "user=$USER" >> $GITHUB_OUTPUT
+          echo "Run as user: $USER"
 
       - name: Make script executable
         run: chmod +x ${{ steps.script.outputs.file }}
 
       - name: Run script
         run: |
-          echo "Running ${{ steps.script.outputs.name }} on edge node..."
-          bash ${{ steps.script.outputs.file }}
+          echo "Running ${{ steps.script.outputs.name }} as user: ${{ steps.runas.outputs.user }}"
+          sudo -u ${{ steps.runas.outputs.user }} bash ${{ steps.script.outputs.file }}
 
       - name: Update audit/audit_log_scripts.csv
         if: always()
@@ -55,7 +66,7 @@ jobs:
           AUDIT_FILE="audit/audit_log_scripts.csv"
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
-          NEW_ENTRY="$TIMESTAMP,${{ steps.script.outputs.name }},${{ github.actor }},${{ github.sha }},$STATUS"
+          NEW_ENTRY="$TIMESTAMP,${{ steps.script.outputs.name }},${{ steps.runas.outputs.user }},${{ github.actor }},${{ github.sha }},$STATUS"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
