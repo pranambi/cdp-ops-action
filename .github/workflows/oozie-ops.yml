@@ -80,6 +80,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Check request is not stale
         run: |
           RUN_CREATED=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} --jq '.created_at')
@@ -92,9 +95,6 @@ jobs:
           echo "Request age: $((AGE/60)) min $((AGE%60)) sec — within limit."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Kill Oozie job
         if: github.event.inputs.operation == 'Kill'
