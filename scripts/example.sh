@@ -10,3 +10,5 @@ echo "Timestamp: $(date -u)"
 # oozie jobs -jobtype wf -filter status=RUNNING
 
 echo "Script completed successfully"
+
+echo ""TESTING...
