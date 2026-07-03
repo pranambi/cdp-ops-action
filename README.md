@@ -1,70 +1,82 @@
-# oozie-ops-action
+# cdp-ops-action
 
-GitHub Actions workflows to manage Oozie jobs on a CDP cluster. Replaces direct edge node access with a controlled, auditable interface.
+GitHub Actions workflows to manage CDP cluster operations — Oozie job control and shell script execution. Replaces direct edge node access with a controlled, auditable, and approval-gated interface.
 
 ## Why this exists
 
-Previously, admins SSHed into the CDP edge node to run Oozie commands manually — no audit trail, no approval, no visibility. These workflows provide a controlled alternative.
+Previously, admins and data scientists SSHed into the CDP edge node to run Oozie commands and shell scripts manually — no audit trail, no approval, no visibility. These workflows provide a controlled alternative entirely within GitHub.
 
 ---
 
-## Approaches
+## Workflows
 
-Two workflow approaches are available, both supporting the same operations:
+### 1. Oozie Operations — Environment-aware (`oozie-ops.yml`)
 
-### Approach 1 — Environment-aware (`Oozie Operations`)
+Manual trigger via GitHub Actions UI. Includes an **environment selector** (Prod / Test-deploy).
 
-Workflow: `.github/workflows/oozie-ops.yml`
-
-Includes an **environment selector** (Prod / Test-deploy) as part of the trigger. Useful when you want to track which environment each operation targeted and maintain separate audit logs per environment.
-
-- Environment shown in run title, approval summary, and audit log
-- Separate audit files: `audit/audit_log_Prod.csv` and `audit/audit_log_Test-deploy.csv`
+- Operation and environment selected from dropdowns
 - Kill and Restart require approval via `cdp-production` environment
+- Stale approvals older than 5 minutes are automatically rejected
+- Separate audit files per environment: `audit/audit_log_Prod.csv` and `audit/audit_log_Test-deploy.csv`
 
-### Approach 2 — Basic (`Oozie Operations (Basic)`)
-
-Workflow: `.github/workflows/oozie-ops-basic.yml`
-
-No environment selector. The workflow executes the operation against Oozie regardless of which environment the job belongs to — since both Prod and Test-deploy share the same Oozie server and there is no naming convention to distinguish job IDs by environment.
-
-- Simpler trigger — just operation and job ID
-- Single audit file: `audit/audit_log_basic.csv`
-- Kill and Restart still require approval via `cdp-production` environment
-
-### Approach 3 — PR-based (`Oozie Operations (PR-based)`)
-
-Workflow: `.github/workflows/oozie-ops-pr.yml`
-
-Operations are requested by creating a YAML file in the `requests/` folder and raising a PR. Merging the PR triggers the workflow — **the PR review itself is the approval gate**. No manual approval step needed.
-
-- Admin creates a request file from `requests/TEMPLATE.yaml`
-- Raises a PR — reviewer reviews the file and approves the PR
-- Merge triggers the workflow automatically
-- Git history + merged PR = permanent audit trail (no separate CSV needed for traceability)
-- Also writes to `audit/audit_log_pr.csv` for quick reference
-- Best for **planned operations** where review before execution is preferred
-
-**How to raise a PR-based request:**
-1. Create a branch: `git checkout -b ops/kill-<job-id>`
-2. Copy `requests/TEMPLATE.yaml` to a new file e.g. `requests/kill-<job-id>.yaml`
-3. Fill in the operation, job ID, and reason
-4. Push and raise a PR
-5. Reviewer approves and merges — operation executes automatically
+**How to trigger:**
+1. Go to **Actions** → **Oozie Operations** → **Run workflow**
+2. Select environment, operation, and enter Job ID
+3. For Kill/Restart — approver must approve before execution
 
 ---
 
-## Supported operations
+### 2. Oozie Operations — Basic (`oozie-ops-basic.yml`)
 
-| Operation | Description |
-|---|---|
-| `Kill` | Kill a running Oozie job |
-| `Suspend` | Pause a running Oozie job |
-| `Resume` | Resume a suspended Oozie job |
-| `Restart` | Kill and rerun a job from the beginning |
-| `Restart_failed_node` | Rerun only the failed node in a job |
+Manual trigger. No environment selector — runs against Oozie regardless of environment since both Prod and Test-deploy share the same Oozie server.
 
-## Job ID format
+- Simpler trigger — just operation and Job ID
+- Kill and Restart require approval via `cdp-production` environment
+- Audit: `audit/audit_log_basic.csv`
+
+**How to trigger:**
+1. Go to **Actions** → **Oozie Operations (Basic)** → **Run workflow**
+2. Select operation and enter Job ID
+
+---
+
+### 3. Oozie Operations — PR-based (`oozie-ops-pr.yml`)
+
+GitOps approach. Edit `requests/request.yaml`, raise a PR — **merging the PR is the approval and triggers execution**.
+
+- Best for planned operations where a review trail before execution is needed
+- PR review replaces the approval gate
+- Reason for the operation is documented in the request file
+- Audit: `audit/audit_log_pr.csv` + full git history as permanent trail
+
+**How to trigger:**
+1. Create a branch: `git checkout -b ops/<operation>-<job-id>`
+2. Edit `requests/request.yaml` with the operation details and reason
+3. Push and raise a PR
+4. Reviewer approves and merges — operation executes automatically
+
+---
+
+### 4. Script Runner (`script-runner.yml`)
+
+Runs shell scripts directly on the CDP edge node. Data scientists add scripts to `scripts/`, raise a PR — merging triggers execution.
+
+- Script runs as the user specified in the `# RUN_AS:` comment at the top of the script
+- If no `# RUN_AS:` is set, runs as the default runner user
+- PR review is the approval gate
+- In production: set `runs-on: self-hosted` to run on the actual CDP edge node
+- Audit: `audit/audit_log_scripts.csv`
+
+**How to run a script:**
+1. Add your script to `scripts/` with `# RUN_AS: <user>` at the top
+2. Create a branch, push, raise PR
+3. Reviewer approves and merges → script runs on the edge node
+
+> Note: `runs-on: ubuntu-latest` is set for demo. Change to `self-hosted` after installing the GitHub Actions runner on the CDP edge node.
+
+---
+
+## Oozie Job ID format
 
 ```
 0000001-240101000000000-oozie-oozi-W
@@ -74,14 +86,15 @@ Operations are requested by creating a YAML file in the `requests/` folder and r
 └─ sequence number
 ```
 
-## How to trigger
+## Supported Oozie operations
 
-1. Go to **Actions** tab
-2. Select the workflow — **Oozie Operations** or **Oozie Operations (Basic)**
-3. Click **Run workflow**
-4. Fill in the inputs and click **Run workflow**
-5. For `Kill` or `Restart` — an approver must approve before the operation executes
-6. Stale requests older than 5 minutes are automatically rejected even if approved
+| Operation | Description |
+|---|---|
+| `Kill` | Kill a running Oozie job |
+| `Suspend` | Pause a running Oozie job |
+| `Resume` | Resume a suspended Oozie job |
+| `Restart` | Kill and rerun a job from the beginning |
+| `Restart_failed_node` | Rerun only the failed node in a job |
 
 ## Audit logs
 
@@ -91,8 +104,7 @@ Operations are requested by creating a YAML file in the `requests/` folder and r
 | `audit/audit_log_Test-deploy.csv` | Oozie Operations — Test-deploy runs |
 | `audit/audit_log_basic.csv` | Oozie Operations (Basic) |
 | `audit/audit_log_pr.csv` | Oozie Operations (PR-based) |
-
-Each log captures: timestamp, operation, job ID, node name, triggered by, and status.
+| `audit/audit_log_scripts.csv` | Script Runner |
 
 ## Secrets required (when connecting to real CDP)
 
