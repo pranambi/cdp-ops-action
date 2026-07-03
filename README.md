@@ -78,40 +78,40 @@ Runs shell scripts directly on the CDP edge node. Data scientists add scripts to
 
 ## Oozie Job ID format
 
-```
+\`\`\`
 0000001-240101000000000-oozie-oozi-W
 │       │               │          └─ W=Workflow, C=Coordinator, B=Bundle
 │       │               └─ oozie server identifier
 │       └─ timestamp
 └─ sequence number
-```
+\`\`\`
 
 ## Supported Oozie operations
 
 | Operation | Description |
 |---|---|
-| `Kill` | Kill a running Oozie job |
-| `Suspend` | Pause a running Oozie job |
-| `Resume` | Resume a suspended Oozie job |
-| `Restart` | Kill and rerun a job from the beginning |
-| `Restart_failed_node` | Rerun only the failed node in a job |
+| \`Kill\` | Kill a running Oozie job |
+| \`Suspend\` | Pause a running Oozie job |
+| \`Resume\` | Resume a suspended Oozie job |
+| \`Restart\` | Kill and rerun a job from the beginning |
+| \`Restart_failed_node\` | Rerun only the failed node in a job |
 
 ## Audit logs
 
 | File | Workflow |
 |---|---|
-| `audit/audit_log_Prod.csv` | Oozie Operations — Prod runs |
-| `audit/audit_log_Test-deploy.csv` | Oozie Operations — Test-deploy runs |
-| `audit/audit_log_basic.csv` | Oozie Operations (Basic) |
-| `audit/audit_log_pr.csv` | Oozie Operations (PR-based) |
-| `audit/audit_log_scripts.csv` | Script Runner |
+| \`audit/audit_log_Prod.csv\` | Oozie Operations — Prod runs |
+| \`audit/audit_log_Test-deploy.csv\` | Oozie Operations — Test-deploy runs |
+| \`audit/audit_log_basic.csv\` | Oozie Operations (Basic) |
+| \`audit/audit_log_pr.csv\` | Oozie Operations (PR-based) |
+| \`audit/audit_log_scripts.csv\` | Script Runner |
 
 ## Secrets required (when connecting to real CDP)
 
 | Secret | Description |
 |---|---|
-| `OOZIE_URL` | Oozie server URL e.g. `http://cdp-edge-node:11000/oozie` |
-| `CDP_USERNAME` | CDP cluster username |
-| `CDP_PASSWORD` | CDP cluster password |
+| \`OOZIE_URL\` | Oozie server URL e.g. \`http://cdp-edge-node:11000/oozie\` |
+| \`CDP_USERNAME\` | CDP cluster username |
+| \`CDP_PASSWORD\` | CDP cluster password |
 
 Set these in: **Settings → Secrets and variables → Actions**
