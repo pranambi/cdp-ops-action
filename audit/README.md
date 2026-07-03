@@ -19,7 +19,8 @@ Auto-updated by GitHub Actions after every operation. Each file corresponds to a
 | `operation` | Kill / Suspend / Resume / Restart / Restart_failed_node |
 | `job_id` | Oozie Job ID |
 | `node_name` | Node name (Restart_failed_node only, otherwise N/A) |
-| `triggered_by` / `merged_by` / `run_by` | GitHub username who triggered or merged |
+| `triggered_by` / `merged_by` | GitHub username who triggered or merged |
+| `run_as` | OS user the script ran as (Script Runner only) |
 | `reason` | Reason provided (PR-based only) |
 | `status` | success or failure |
 

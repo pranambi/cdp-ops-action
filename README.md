@@ -59,18 +59,22 @@ GitOps approach. Edit `requests/request.yaml`, raise a PR — **merging the PR i
 
 ### 4. Script Runner (`script-runner.yml`)
 
-Runs shell scripts directly on the CDP edge node. Data scientists add scripts to `scripts/`, raise a PR — merging triggers execution.
+Runs shell scripts on the CDP edge node. Scripts are pushed to the repo for version control — execution is triggered separately and manually via the GitHub Actions UI.
 
-- Script runs as the user specified in the `# RUN_AS:` comment at the top of the script
-- If no `# RUN_AS:` is set, runs as the default runner user
-- PR review is the approval gate
-- In production: set `runs-on: self-hosted` to run on the actual CDP edge node
+- Push scripts to `scripts/` via PR (version control only — no auto-execution on merge)
+- To execute: trigger manually from **Actions** → **Script Runner** → **Run workflow**
+- Select the script filename and the OS user to run as
+- Requires approval via `cdp-production` environment before execution
+- Stale approvals older than 5 minutes are automatically rejected
+- If the specified user doesn't exist on the runner, falls back to current user (demo mode)
+- In production: set `runs-on: self-hosted` and configure `/etc/sudoers` for the runner service account
 - Audit: `audit/audit_log_scripts.csv`
 
-**How to run a script:**
-1. Add your script to `scripts/` with `# RUN_AS: <user>` at the top
-2. Create a branch, push, raise PR
-3. Reviewer approves and merges → script runs on the edge node
+**How to add and run a script:**
+1. Add your script to `scripts/` — create a branch, push, raise PR, merge (no execution yet)
+2. Go to **Actions** → **Script Runner** → **Run workflow**
+3. Enter the script filename (e.g. `example.sh`) and the OS user to run as
+4. Approver approves → script runs on the edge node
 
 > Note: `runs-on: ubuntu-latest` is set for demo. Change to `self-hosted` after installing the GitHub Actions runner on the CDP edge node.
 
