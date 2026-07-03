@@ -23,7 +23,7 @@ jobs:
       - name: Detect changed script
         id: script
         run: |
-          CHANGED=$(git show --name-only --format="" HEAD | grep '^scripts/.*\.sh$' | head -1)
+          CHANGED=$(git diff --name-only HEAD^1 HEAD | grep '^scripts/.*\.sh$' | head -1)
           if [ -z "$CHANGED" ]; then
             echo "No script file found in this push"
             exit 1
