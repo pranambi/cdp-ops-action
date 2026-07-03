@@ -4,7 +4,7 @@ run-name: "PR | ${{ github.event.head_commit.message }}"
 on:
   push:
     branches: [main]
-    paths: ['requests/*.yaml']
+    paths: ['requests/request.yaml']
 
 permissions:
   contents: write
@@ -22,9 +22,9 @@ jobs:
       - name: Parse request file
         id: request
         run: |
-          CHANGED=$(git show --name-only --format="" HEAD | grep '^requests/.*\.yaml$' | grep -v 'TEMPLATE.yaml' | head -1)
-          if [ -z "$CHANGED" ]; then
-            echo "No request file found in this push (or only TEMPLATE.yaml changed — skipping)"
+          CHANGED="requests/request.yaml"
+          if [ ! -f "$CHANGED" ]; then
+            echo "ERROR: requests/request.yaml not found"
             exit 1
           fi
           echo "file=$CHANGED" >> $GITHUB_OUTPUT
