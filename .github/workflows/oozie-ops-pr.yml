@@ -22,9 +22,9 @@ jobs:
       - name: Parse request file
         id: request
         run: |
-          CHANGED=$(git diff-tree --no-commit-id -r --name-only ${{ github.sha }} | grep '^requests/.*\.yaml$' | head -1)
+          CHANGED=$(git show --name-only --format="" HEAD | grep '^requests/.*\.yaml$' | grep -v 'TEMPLATE.yaml' | head -1)
           if [ -z "$CHANGED" ]; then
-            echo "No request file found in this push"
+            echo "No request file found in this push (or only TEMPLATE.yaml changed — skipping)"
             exit 1
           fi
           echo "file=$CHANGED" >> $GITHUB_OUTPUT
