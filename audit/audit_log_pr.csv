@@ -1,4 +1,4 @@
 timestamp,operation,job_id,node_name,merged_by,reason,status
-2026-07-03 12:58:47 UTC,,,,pranambi,,failure
 2026-07-03 13:03:43 UTC,,,,pranambi,,failure
 2026-07-03 13:12:31 UTC,Kill,0000001-240101000000000-oozie-oozi-W,#,pranambi,Briefly describe why this operation is needed,success
+2026-07-03 13:13:48 UTC,Kill,0000023-240101000000000-oozie-oozi-W,#,pranambi,Briefly describe why this operation is needed,success
