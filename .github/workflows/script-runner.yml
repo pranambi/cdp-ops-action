@@ -46,18 +46,18 @@ jobs:
         run: |
           USER=$(grep '^# RUN_AS:' ${{ steps.script.outputs.file }} | awk '{print $3}' | tr -d '[:space:]')
           if [ -z "$USER" ]; then
-            USER=$(whoami)
+            USER="default runner user"
           fi
           echo "user=$USER" >> $GITHUB_OUTPUT
-          echo "Run as user: $USER"
+          echo "Expected user context: $USER"
 
       - name: Make script executable
         run: chmod +x ${{ steps.script.outputs.file }}
 
       - name: Run script
         run: |
-          echo "Running ${{ steps.script.outputs.name }} as user: ${{ steps.runas.outputs.user }}"
-          sudo -u ${{ steps.runas.outputs.user }} bash ${{ steps.script.outputs.file }}
+          echo "Running ${{ steps.script.outputs.name }} (expected user context: ${{ steps.runas.outputs.user }})"
+          bash ${{ steps.script.outputs.file }}
 
       - name: Update audit/audit_log_scripts.csv
         if: always()
