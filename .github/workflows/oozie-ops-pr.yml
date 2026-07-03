@@ -1,0 +1,145 @@
+name: Oozie Operations (PR-based)
+run-name: "PR | ${{ github.event.head_commit.message }}"
+
+on:
+  push:
+    branches: [main]
+    paths: ['requests/*.yaml']
+
+permissions:
+  contents: write
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Parse request file
+        id: request
+        run: |
+          CHANGED=$(git diff-tree --no-commit-id -r --name-only ${{ github.sha }} | grep '^requests/.*\.yaml$' | head -1)
+          if [ -z "$CHANGED" ]; then
+            echo "No request file found in this push"
+            exit 1
+          fi
+          echo "file=$CHANGED" >> $GITHUB_OUTPUT
+
+          OPERATION=$(grep '^operation:' "$CHANGED" | awk '{print $2}' | tr -d '"')
+          JOB_ID=$(grep '^job_id:' "$CHANGED" | awk '{print $2}' | tr -d '"')
+          NODE=$(grep '^node_name:' "$CHANGED" | awk '{print $2}' | tr -d '"')
+          REASON=$(grep '^reason:' "$CHANGED" | cut -d':' -f2- | xargs)
+
+          echo "operation=$OPERATION" >> $GITHUB_OUTPUT
+          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+          echo "node_name=${NODE:-N/A}" >> $GITHUB_OUTPUT
+          echo "reason=${REASON:-Not provided}" >> $GITHUB_OUTPUT
+
+      - name: Validate inputs
+        run: |
+          if [[ ! "${{ steps.request.outputs.job_id }}" =~ ^[0-9]+-[0-9]+-oozie-oozi-[WCB]$ ]]; then
+            echo "ERROR: Invalid Oozie Job ID format"
+            echo "Expected format: 0000001-240101000000000-oozie-oozi-W"
+            exit 1
+          fi
+          if [ "${{ steps.request.outputs.operation }}" = "Restart_failed_node" ] && [ "${{ steps.request.outputs.node_name }}" = "N/A" ]; then
+            echo "ERROR: node_name is required for Restart_failed_node"
+            exit 1
+          fi
+          echo "Inputs validated successfully"
+
+      - name: Print job summary
+        run: |
+          echo "## Operation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Operation | **${{ steps.request.outputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Job ID | \`${{ steps.request.outputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node | ${{ steps.request.outputs.node_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Reason | ${{ steps.request.outputs.reason }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Merged by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Request file | ${{ steps.request.outputs.file }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Kill Oozie job
+        if: steps.request.outputs.operation == 'Kill'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending KILL request for job: ${{ steps.request.outputs.job_id }}"
+          echo "Response: Job ${{ steps.request.outputs.job_id }} killed successfully"
+
+      - name: Suspend Oozie job
+        if: steps.request.outputs.operation == 'Suspend'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending SUSPEND request for job: ${{ steps.request.outputs.job_id }}"
+          echo "Response: Job ${{ steps.request.outputs.job_id }} suspended successfully"
+
+      - name: Resume Oozie job
+        if: steps.request.outputs.operation == 'Resume'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending RESUME request for job: ${{ steps.request.outputs.job_id }}"
+          echo "Response: Job ${{ steps.request.outputs.job_id }} resumed successfully"
+
+      - name: Restart Oozie job from beginning
+        if: steps.request.outputs.operation == 'Restart'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Step 1: Sending KILL request for job: ${{ steps.request.outputs.job_id }}"
+          echo "Response: Job ${{ steps.request.outputs.job_id }} killed"
+          echo "Step 2: Sending RERUN request for job: ${{ steps.request.outputs.job_id }}"
+          echo "Response: Job ${{ steps.request.outputs.job_id }} restarted from beginning"
+
+      - name: Restart failed node
+        if: steps.request.outputs.operation == 'Restart_failed_node'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending RERUN request for failed node: ${{ steps.request.outputs.node_name }}"
+          echo "Job ID: ${{ steps.request.outputs.job_id }}"
+          echo "Response: Failed node ${{ steps.request.outputs.node_name }} restarted successfully"
+
+      - name: Summary
+        run: |
+          echo "================================"
+          echo "Operation   : ${{ steps.request.outputs.operation }}"
+          echo "Job ID      : ${{ steps.request.outputs.job_id }}"
+          echo "Node        : ${{ steps.request.outputs.node_name }}"
+          echo "Reason      : ${{ steps.request.outputs.reason }}"
+          echo "Merged by   : ${{ github.actor }}"
+          echo "================================"
+
+      - name: Update audit/audit_log_pr.csv
+        if: always()
+        run: |
+          MAX_ROWS=3
+          AUDIT_FILE="audit/audit_log_pr.csv"
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          STATUS="${{ job.status }}"
+          NEW_ENTRY="$TIMESTAMP,${{ steps.request.outputs.operation }},${{ steps.request.outputs.job_id }},${{ steps.request.outputs.node_name }},${{ github.actor }},${{ steps.request.outputs.reason }},$STATUS"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for i in 1 2 3; do
+            git fetch origin main
+            git checkout origin/main -- "$AUDIT_FILE" 2>/dev/null || echo "timestamp,operation,job_id,node_name,merged_by,reason,status" > "$AUDIT_FILE"
+
+            echo "$NEW_ENTRY" >> "$AUDIT_FILE"
+
+            TOTAL=$(wc -l < "$AUDIT_FILE")
+            if [ "$TOTAL" -gt "$((MAX_ROWS + 1))" ]; then
+              head -1 "$AUDIT_FILE" > "$AUDIT_FILE.tmp"
+              tail -n "$MAX_ROWS" "$AUDIT_FILE" >> "$AUDIT_FILE.tmp"
+              mv "$AUDIT_FILE.tmp" "$AUDIT_FILE"
+            fi
+
+            git add "$AUDIT_FILE"
+            git commit -m "audit(pr): ${{ steps.request.outputs.operation }} on ${{ steps.request.outputs.job_id }} by ${{ github.actor }}"
+            git push origin main && break
+            echo "Push conflict, retrying ($i/3)..."
+            git reset HEAD~1
+          done

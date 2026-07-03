@@ -32,6 +32,26 @@ No environment selector. The workflow executes the operation against Oozie regar
 - Single audit file: `audit/audit_log_basic.csv`
 - Kill and Restart still require approval via `cdp-production` environment
 
+### Approach 3 — PR-based (`Oozie Operations (PR-based)`)
+
+Workflow: `.github/workflows/oozie-ops-pr.yml`
+
+Operations are requested by creating a YAML file in the `requests/` folder and raising a PR. Merging the PR triggers the workflow — **the PR review itself is the approval gate**. No manual approval step needed.
+
+- Admin creates a request file from `requests/TEMPLATE.yaml`
+- Raises a PR — reviewer reviews the file and approves the PR
+- Merge triggers the workflow automatically
+- Git history + merged PR = permanent audit trail (no separate CSV needed for traceability)
+- Also writes to `audit/audit_log_pr.csv` for quick reference
+- Best for **planned operations** where review before execution is preferred
+
+**How to raise a PR-based request:**
+1. Create a branch: `git checkout -b ops/kill-<job-id>`
+2. Copy `requests/TEMPLATE.yaml` to a new file e.g. `requests/kill-<job-id>.yaml`
+3. Fill in the operation, job ID, and reason
+4. Push and raise a PR
+5. Reviewer approves and merges — operation executes automatically
+
 ---
 
 ## Supported operations
@@ -70,6 +90,7 @@ No environment selector. The workflow executes the operation against Oozie regar
 | `audit/audit_log_Prod.csv` | Oozie Operations — Prod runs |
 | `audit/audit_log_Test-deploy.csv` | Oozie Operations — Test-deploy runs |
 | `audit/audit_log_basic.csv` | Oozie Operations (Basic) |
+| `audit/audit_log_pr.csv` | Oozie Operations (PR-based) |
 
 Each log captures: timestamp, operation, job ID, node name, triggered by, and status.
 
