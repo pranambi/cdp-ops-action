@@ -1,63 +1,101 @@
 name: Script Runner
-run-name: "script | ${{ github.event.head_commit.message }} | by ${{ github.actor }}"
+run-name: "script | ${{ inputs.script }} | as ${{ inputs.run_as }} | by ${{ github.actor }}"
 
 on:
-  push:
-    branches: [main]
-    paths: ['scripts/*.sh']
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Script filename (from scripts/ folder, e.g. example.sh)'
+        required: true
+        type: string
+      run_as:
+        description: 'OS user to run the script as (e.g. hdfs, oozie, cicd_prd)'
+        required: true
+        default: 'default'
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  run-script:
-    # In production: change to 'self-hosted' to run directly on the CDP edge node
+  validate:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Detect changed script
-        id: script
+      - name: Validate script exists
         run: |
-          CHANGED=$(git diff --name-only HEAD^1 HEAD | grep '^scripts/.*\.sh$' | head -1)
-          if [ -z "$CHANGED" ]; then
-            echo "No script file found in this push"
+          SCRIPT_PATH="scripts/${{ inputs.script }}"
+          if [ ! -f "$SCRIPT_PATH" ]; then
+            echo "ERROR: Script not found: $SCRIPT_PATH"
+            echo "Available scripts:"
+            ls scripts/*.sh 2>/dev/null || echo "  (no .sh files found)"
             exit 1
           fi
-          echo "file=$CHANGED" >> $GITHUB_OUTPUT
-          echo "name=$(basename $CHANGED)" >> $GITHUB_OUTPUT
+          echo "Script found: $SCRIPT_PATH"
 
       - name: Print run summary
         run: |
           echo "## Script Run Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Script | \`${{ steps.script.outputs.name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Run as user | \`${{ steps.runas.outputs.user }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Triggered by merge from | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Script | \`${{ inputs.script }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run as | \`${{ inputs.run_as }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Detect run-as user
-        id: runas
+  request-approval:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: cdp-production
+
+    steps:
+      - name: Awaiting approval
         run: |
-          USER=$(grep '^# RUN_AS:' ${{ steps.script.outputs.file }} | awk '{print $3}' | tr -d '[:space:]')
-          if [ -z "$USER" ]; then
-            USER=$(whoami)
+          echo "Approval granted for: ${{ inputs.script }} as ${{ inputs.run_as }}"
+
+  execute:
+    needs: request-approval
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for stale approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_AGE: 300
+        run: |
+          RUN_ID=${{ github.run_id }}
+          CREATED_AT=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID --jq '.created_at')
+          CREATED_TS=$(date -d "$CREATED_AT" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%SZ" "$CREATED_AT" +%s)
+          NOW=$(date +%s)
+          AGE=$((NOW - CREATED_TS))
+          echo "Workflow age: ${AGE}s (max allowed: ${MAX_AGE}s)"
+          if [ "$AGE" -gt "$MAX_AGE" ]; then
+            echo "ERROR: Approval is stale (${AGE}s old). Re-trigger the workflow."
+            exit 1
           fi
-          echo "user=$USER" >> $GITHUB_OUTPUT
-          echo "Run as user: $USER"
 
       - name: Make script executable
-        run: chmod +x ${{ steps.script.outputs.file }}
+        run: chmod +x "scripts/${{ inputs.script }}"
 
       - name: Run script
         run: |
-          echo "Running ${{ steps.script.outputs.name }} as user: ${{ steps.runas.outputs.user }}"
-          sudo -u ${{ steps.runas.outputs.user }} bash ${{ steps.script.outputs.file }}
+          RUN_AS="${{ inputs.run_as }}"
+          SCRIPT="scripts/${{ inputs.script }}"
+          if [ "$RUN_AS" = "default" ]; then
+            echo "Running ${{ inputs.script }} as current runner user"
+            bash "$SCRIPT"
+          elif id "$RUN_AS" &>/dev/null; then
+            echo "Running ${{ inputs.script }} as $RUN_AS"
+            sudo -u "$RUN_AS" bash "$SCRIPT"
+          else
+            echo "WARN: User '$RUN_AS' not found on this runner — running as current user (demo mode)"
+            bash "$SCRIPT"
+          fi
 
       - name: Update audit/audit_log_scripts.csv
         if: always()
@@ -66,14 +104,14 @@ jobs:
           AUDIT_FILE="audit/audit_log_scripts.csv"
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
-          NEW_ENTRY="$TIMESTAMP,${{ steps.script.outputs.name }},${{ steps.runas.outputs.user }},${{ github.actor }},${{ github.sha }},$STATUS"
+          NEW_ENTRY="$TIMESTAMP,${{ inputs.script }},${{ inputs.run_as }},${{ github.actor }},$STATUS"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           for i in 1 2 3; do
             git fetch origin main
-            git checkout origin/main -- "$AUDIT_FILE" 2>/dev/null || echo "timestamp,script,run_by,commit,status" > "$AUDIT_FILE"
+            git checkout origin/main -- "$AUDIT_FILE" 2>/dev/null || echo "timestamp,script,run_as,triggered_by,status" > "$AUDIT_FILE"
 
             echo "$NEW_ENTRY" >> "$AUDIT_FILE"
 
@@ -85,7 +123,7 @@ jobs:
             fi
 
             git add "$AUDIT_FILE"
-            git commit -m "audit(script): ${{ steps.script.outputs.name }} by ${{ github.actor }}"
+            git commit -m "audit(script): ${{ inputs.script }} by ${{ github.actor }}"
             git push origin main && break
             echo "Push conflict, retrying ($i/3)..."
             git reset HEAD~1
