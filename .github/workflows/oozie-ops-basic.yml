@@ -1,0 +1,167 @@
+name: Oozie Operations (Basic)
+run-name: "${{ github.event.inputs.operation }} | ${{ github.event.inputs.job_id }} | by ${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation to perform'
+        required: true
+        type: choice
+        options:
+          - Kill
+          - Suspend
+          - Resume
+          - Restart
+          - Restart_failed_node
+      job_id:
+        description: 'Oozie Job ID (e.g. 0000001-240101000000000-oozie-oozi-W)'
+        required: true
+        type: string
+      node_name:
+        description: 'Node name (required only for Restart_failed_node)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          if [[ ! "${{ github.event.inputs.job_id }}" =~ ^[0-9]+-[0-9]+-oozie-oozi-[WCB]$ ]]; then
+            echo "ERROR: Invalid Oozie Job ID format"
+            echo "Expected format: 0000001-240101000000000-oozie-oozi-W"
+            exit 1
+          fi
+          if [ "${{ github.event.inputs.operation }}" = "Restart_failed_node" ] && [ -z "${{ github.event.inputs.node_name }}" ]; then
+            echo "ERROR: node_name is required for Restart_failed_node operation"
+            exit 1
+          fi
+          echo "Inputs validated successfully"
+
+      - name: Print approval summary
+        run: |
+          echo "## Approval Request Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Operation | **${{ github.event.inputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Job ID | \`${{ github.event.inputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Node | ${{ github.event.inputs.node_name || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Requested by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+
+  request-approval:
+    needs: validate
+    if: contains(fromJSON('["Kill", "Restart"]'), github.event.inputs.operation)
+    environment: cdp-production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approval granted
+        run: echo "Approval received for ${{ github.event.inputs.operation }} on job ${{ github.event.inputs.job_id }}"
+
+  execute:
+    needs: [validate, request-approval]
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      (needs.request-approval.result == 'success' || needs.request-approval.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check request is not stale
+        run: |
+          RUN_CREATED=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} --jq '.created_at')
+          AGE=$(( $(date +%s) - $(date -d "$RUN_CREATED" +%s) ))
+          MAX_AGE=300
+          if [ "$AGE" -gt "$MAX_AGE" ]; then
+            echo "ERROR: Request is $((AGE/60)) minutes old. Stale approvals are rejected (max $((MAX_AGE/60)) min)."
+            exit 1
+          fi
+          echo "Request age: $((AGE/60)) min $((AGE%60)) sec — within limit."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Kill Oozie job
+        if: github.event.inputs.operation == 'Kill'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending KILL request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} killed successfully"
+
+      - name: Suspend Oozie job
+        if: github.event.inputs.operation == 'Suspend'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending SUSPEND request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} suspended successfully"
+
+      - name: Resume Oozie job
+        if: github.event.inputs.operation == 'Resume'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending RESUME request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} resumed successfully"
+
+      - name: Restart Oozie job from beginning
+        if: github.event.inputs.operation == 'Restart'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Step 1: Sending KILL request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} killed"
+          echo "Step 2: Sending RERUN request for job: ${{ github.event.inputs.job_id }}"
+          echo "Response: Job ${{ github.event.inputs.job_id }} restarted from beginning"
+
+      - name: Restart failed node
+        if: github.event.inputs.operation == 'Restart_failed_node'
+        run: |
+          echo "Connecting to Oozie server..."
+          echo "Sending RERUN request for failed node: ${{ github.event.inputs.node_name }}"
+          echo "Job ID: ${{ github.event.inputs.job_id }}"
+          echo "Response: Failed node ${{ github.event.inputs.node_name }} restarted successfully"
+
+      - name: Summary
+        run: |
+          echo "================================"
+          echo "Operation   : ${{ github.event.inputs.operation }}"
+          echo "Job ID      : ${{ github.event.inputs.job_id }}"
+          echo "Node        : ${{ github.event.inputs.node_name || 'N/A' }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "================================"
+
+      - name: Update audit/audit_log_basic.csv
+        if: always()
+        run: |
+          MAX_ROWS=3
+          AUDIT_FILE="audit/audit_log_basic.csv"
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          STATUS="${{ job.status }}"
+          NEW_ENTRY="$TIMESTAMP,${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          for i in 1 2 3; do
+            git fetch origin main
+            git checkout origin/main -- "$AUDIT_FILE" 2>/dev/null || echo "timestamp,operation,job_id,node_name,triggered_by,status" > "$AUDIT_FILE"
+
+            echo "$NEW_ENTRY" >> "$AUDIT_FILE"
+
+            TOTAL=$(wc -l < "$AUDIT_FILE")
+            if [ "$TOTAL" -gt "$((MAX_ROWS + 1))" ]; then
+              head -1 "$AUDIT_FILE" > "$AUDIT_FILE.tmp"
+              tail -n "$MAX_ROWS" "$AUDIT_FILE" >> "$AUDIT_FILE.tmp"
+              mv "$AUDIT_FILE.tmp" "$AUDIT_FILE"
+            fi
+
+            git add "$AUDIT_FILE"
+            git commit -m "audit(basic): ${{ github.event.inputs.operation }} on ${{ github.event.inputs.job_id }} by ${{ github.actor }}"
+            git push origin main && break
+            echo "Push conflict, retrying ($i/3)..."
+            git reset HEAD~1
+          done
