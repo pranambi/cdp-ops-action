@@ -6,7 +6,6 @@ Auto-updated by GitHub Actions after every operation. Each file corresponds to a
 |---|---|---|
 | `audit_log_Prod.csv` | Oozie Operations — Prod runs | `oozie-ops.yml` |
 | `audit_log_Test-deploy.csv` | Oozie Operations — Test-deploy runs | `oozie-ops.yml` |
-| `audit_log_basic.csv` | Oozie Operations (Basic) | `oozie-ops-basic.yml` |
 | `audit_log_pr.csv` | Oozie Operations (PR-based) | `oozie-ops-pr.yml` |
 | `audit_log_scripts.csv` | Script Runner | `script-runner.yml` |
 

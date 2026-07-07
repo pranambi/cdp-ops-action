@@ -26,21 +26,7 @@ Manual trigger via GitHub Actions UI. Includes an **environment selector** (Prod
 
 ---
 
-### 2. Oozie Operations — Basic (`oozie-ops-basic.yml`)
-
-Manual trigger. No environment selector — runs against Oozie regardless of environment since both Prod and Test-deploy share the same Oozie server.
-
-- Simpler trigger — just operation and Job ID
-- Kill and Restart require approval via `cdp-production` environment
-- Audit: `audit/audit_log_basic.csv`
-
-**How to trigger:**
-1. Go to **Actions** → **Oozie Operations (Basic)** → **Run workflow**
-2. Select operation and enter Job ID
-
----
-
-### 3. Oozie Operations — PR-based (`oozie-ops-pr.yml`)
+### 2. Oozie Operations — PR-based (`oozie-ops-pr.yml`)
 
 GitOps approach. Edit `requests/request.yaml`, raise a PR — **merging the PR is the approval and triggers execution**.
 
@@ -57,7 +43,7 @@ GitOps approach. Edit `requests/request.yaml`, raise a PR — **merging the PR i
 
 ---
 
-### 4. Script Runner (`script-runner.yml`)
+### 3. Script Runner (`script-runner.yml`)
 
 Runs shell scripts on the CDP edge node. Scripts are pushed to the repo for version control — execution is triggered separately and manually via the GitHub Actions UI.
 
@@ -106,16 +92,49 @@ Runs shell scripts on the CDP edge node. Scripts are pushed to the repo for vers
 |---|---|
 | \`audit/audit_log_Prod.csv\` | Oozie Operations — Prod runs |
 | \`audit/audit_log_Test-deploy.csv\` | Oozie Operations — Test-deploy runs |
-| \`audit/audit_log_basic.csv\` | Oozie Operations (Basic) |
 | \`audit/audit_log_pr.csv\` | Oozie Operations (PR-based) |
 | \`audit/audit_log_scripts.csv\` | Script Runner |
 
 ## Secrets required (when connecting to real CDP)
 
-| Secret | Description |
-|---|---|
-| \`OOZIE_URL\` | Oozie server URL e.g. \`http://cdp-edge-node:11000/oozie\` |
-| \`CDP_USERNAME\` | CDP cluster username |
-| \`CDP_PASSWORD\` | CDP cluster password |
+| Secret | Used by | Description |
+|---|---|---|
+| \`OOZIE_URL\` | all Oozie workflows | Oozie server URL e.g. \`http://cdp-edge-node:11000/oozie\` |
+| \`CDP_USERNAME\` | all Oozie workflows | CDP cluster username |
+| \`CDP_PASSWORD\` | all Oozie workflows | CDP cluster password |
+| \`HIVESERVER2_URL\` | `oozie-ops.yml` | HiveServer2 JDBC URL e.g. \`jdbc:hive2://cdp-edge-node:10000/default\` |
+| \`HIVE_USERNAME\` | `oozie-ops.yml` | Hive username |
+| \`HIVE_PASSWORD\` | `oozie-ops.yml` | Hive password |
 
 Set these in: **Settings → Secrets and variables → Actions**
+
+## Hive audit table setup
+
+Run this once on your cluster before enabling Hive audit logging:
+
+\`\`\`sql
+CREATE DATABASE IF NOT EXISTS ops_audit;
+
+CREATE TABLE IF NOT EXISTS ops_audit.cdp_ops_log (
+    timestamp     STRING,
+    environment   STRING,
+    operation     STRING,
+    job_id        STRING,
+    node_name     STRING,
+    triggered_by  STRING,
+    github_run_id STRING,
+    status        STRING
+) PARTITIONED BY (log_date STRING)
+  STORED AS ORC
+  TBLPROPERTIES ('transactional'='true');
+\`\`\`
+
+Each workflow run inserts one row. Partitioned by `log_date` (YYYY-MM-DD) for efficient querying.
+
+To query recent operations:
+
+\`\`\`sql
+SELECT * FROM ops_audit.cdp_ops_log
+WHERE log_date >= '2024-01-01'
+ORDER BY timestamp DESC;
+\`\`\`

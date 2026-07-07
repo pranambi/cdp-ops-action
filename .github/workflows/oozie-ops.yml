@@ -51,15 +51,67 @@ jobs:
           fi
           echo "Inputs validated successfully"
 
+      - name: Validate job ownership
+        env:
+          OOZIE_URL: ${{ secrets.OOZIE_URL }}
+          CDP_USERNAME: ${{ secrets.CDP_USERNAME }}
+          CDP_PASSWORD: ${{ secrets.CDP_PASSWORD }}
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          JOB_ID="${{ github.event.inputs.job_id }}"
+
+          if [ "$ENV" = "Prod" ]; then
+            EXPECTED_USER="oozie"
+          else
+            EXPECTED_USER="aaci_service_user1"
+          fi
+
+          echo "Environment: $ENV — expected job owner: $EXPECTED_USER"
+
+          if [ -z "$OOZIE_URL" ]; then
+            echo "WARN: OOZIE_URL secret not set — skipping ownership check (demo mode)"
+            exit 0
+          fi
+
+          JOB_INFO=$(curl -sf -u "$CDP_USERNAME:$CDP_PASSWORD" \
+            "$OOZIE_URL/v1/job/$JOB_ID?show=info" 2>/dev/null || echo "")
+
+          if [ -z "$JOB_INFO" ]; then
+            echo "WARN: Could not reach Oozie server — skipping ownership check (demo mode)"
+            exit 0
+          fi
+
+          JOB_USER=$(echo "$JOB_INFO" | jq -r '.user // empty')
+
+          if [ -z "$JOB_USER" ]; then
+            echo "ERROR: Could not determine job owner from Oozie API response"
+            exit 1
+          fi
+
+          if [ "$JOB_USER" != "$EXPECTED_USER" ]; then
+            echo "ERROR: Job $JOB_ID is owned by '$JOB_USER'"
+            echo "For '$ENV', only jobs owned by '$EXPECTED_USER' are managed through this workflow."
+            exit 1
+          fi
+
+          echo "Ownership validated: job owner '$JOB_USER' matches expected '$EXPECTED_USER' for $ENV"
+
       - name: Print approval summary
         run: |
+          ENV="${{ github.event.inputs.environment }}"
+          if [ "$ENV" = "Prod" ]; then
+            EXPECTED_USER="oozie"
+          else
+            EXPECTED_USER="aaci_service_user1"
+          fi
           echo "## Approval Request Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | **${{ github.event.inputs.environment }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **$ENV** |" >> $GITHUB_STEP_SUMMARY
           echo "| Operation | **${{ github.event.inputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
           echo "| Job ID | \`${{ github.event.inputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Node | ${{ github.event.inputs.node_name || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Expected job owner | \`$EXPECTED_USER\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Requested by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
   request-approval:
@@ -143,6 +195,61 @@ jobs:
           echo "Node        : ${{ github.event.inputs.node_name || 'N/A' }}"
           echo "Triggered by: ${{ github.actor }}"
           echo "================================"
+
+      - name: Write to Hive audit table
+        if: always()
+        env:
+          HIVESERVER2_URL: ${{ secrets.HIVESERVER2_URL }}
+          HIVE_USERNAME: ${{ secrets.HIVE_USERNAME }}
+          HIVE_PASSWORD: ${{ secrets.HIVE_PASSWORD }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S")
+          LOG_DATE=$(date -u +"%Y-%m-%d")
+          ENV="${{ github.event.inputs.environment }}"
+          OPERATION="${{ github.event.inputs.operation }}"
+          JOB_ID="${{ github.event.inputs.job_id }}"
+          NODE="${{ github.event.inputs.node_name || 'N/A' }}"
+          ACTOR="${{ github.actor }}"
+          RUN_ID="${{ github.run_id }}"
+          STATUS="${{ job.status }}"
+
+          INSERT_SQL="INSERT INTO ops_audit.cdp_ops_log PARTITION (log_date='$LOG_DATE') VALUES ('$TIMESTAMP', '$ENV', '$OPERATION', '$JOB_ID', '$NODE', '$ACTOR', '$RUN_ID', '$STATUS');"
+
+          echo "========================================"
+          echo "  Hive Audit"
+          echo "========================================"
+          echo ""
+          echo "-- One-time table setup (run on your cluster):"
+          echo "CREATE DATABASE IF NOT EXISTS ops_audit;"
+          echo "CREATE TABLE IF NOT EXISTS ops_audit.cdp_ops_log ("
+          echo "    timestamp     STRING,"
+          echo "    environment   STRING,"
+          echo "    operation     STRING,"
+          echo "    job_id        STRING,"
+          echo "    node_name     STRING,"
+          echo "    triggered_by  STRING,"
+          echo "    github_run_id STRING,"
+          echo "    status        STRING"
+          echo ") PARTITIONED BY (log_date STRING)"
+          echo "  STORED AS ORC"
+          echo "  TBLPROPERTIES ('transactional'='true');"
+          echo ""
+          echo "-- INSERT for this run:"
+          echo "$INSERT_SQL"
+          echo ""
+          echo "-- beeline command:"
+          echo "beeline -u \"\$HIVESERVER2_URL\" -n \"\$HIVE_USERNAME\" -p \"\$HIVE_PASSWORD\" --silent=true -e \"$INSERT_SQL\""
+          echo "========================================"
+
+          if [ -z "$HIVESERVER2_URL" ]; then
+            echo "WARN: HIVESERVER2_URL secret not configured — skipping Hive write (demo mode)"
+            exit 0
+          fi
+
+          beeline -u "$HIVESERVER2_URL" -n "$HIVE_USERNAME" -p "$HIVE_PASSWORD" \
+            --silent=true \
+            -e "$INSERT_SQL"
+          echo "Hive audit record written to ops_audit.cdp_ops_log (partition: $LOG_DATE)"
 
       - name: Update audit/audit_log_${{ github.event.inputs.environment }}.csv
         if: always()
