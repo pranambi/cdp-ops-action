@@ -26,21 +26,7 @@ Manual trigger via GitHub Actions UI. Includes an **environment selector** (Prod
 
 ---
 
-### 2. Oozie Operations — Basic (`oozie-ops-basic.yml`)
-
-Manual trigger. No environment selector — runs against Oozie regardless of environment since both Prod and Test-deploy share the same Oozie server.
-
-- Simpler trigger — just operation and Job ID
-- Kill and Restart require approval via `cdp-production` environment
-- Audit: `audit/audit_log_basic.csv`
-
-**How to trigger:**
-1. Go to **Actions** → **Oozie Operations (Basic)** → **Run workflow**
-2. Select operation and enter Job ID
-
----
-
-### 3. Oozie Operations — PR-based (`oozie-ops-pr.yml`)
+### 2. Oozie Operations — PR-based (`oozie-ops-pr.yml`)
 
 GitOps approach. Edit `requests/request.yaml`, raise a PR — **merging the PR is the approval and triggers execution**.
 
@@ -57,7 +43,7 @@ GitOps approach. Edit `requests/request.yaml`, raise a PR — **merging the PR i
 
 ---
 
-### 4. Script Runner (`script-runner.yml`)
+### 3. Script Runner (`script-runner.yml`)
 
 Runs shell scripts on the CDP edge node. Scripts are pushed to the repo for version control — execution is triggered separately and manually via the GitHub Actions UI.
 
@@ -106,7 +92,6 @@ Runs shell scripts on the CDP edge node. Scripts are pushed to the repo for vers
 |---|---|
 | \`audit/audit_log_Prod.csv\` | Oozie Operations — Prod runs |
 | \`audit/audit_log_Test-deploy.csv\` | Oozie Operations — Test-deploy runs |
-| \`audit/audit_log_basic.csv\` | Oozie Operations (Basic) |
 | \`audit/audit_log_pr.csv\` | Oozie Operations (PR-based) |
 | \`audit/audit_log_scripts.csv\` | Script Runner |
 
