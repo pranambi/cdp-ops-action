@@ -97,10 +97,44 @@ Runs shell scripts on the CDP edge node. Scripts are pushed to the repo for vers
 
 ## Secrets required (when connecting to real CDP)
 
-| Secret | Description |
-|---|---|
-| \`OOZIE_URL\` | Oozie server URL e.g. \`http://cdp-edge-node:11000/oozie\` |
-| \`CDP_USERNAME\` | CDP cluster username |
-| \`CDP_PASSWORD\` | CDP cluster password |
+| Secret | Used by | Description |
+|---|---|---|
+| \`OOZIE_URL\` | all Oozie workflows | Oozie server URL e.g. \`http://cdp-edge-node:11000/oozie\` |
+| \`CDP_USERNAME\` | all Oozie workflows | CDP cluster username |
+| \`CDP_PASSWORD\` | all Oozie workflows | CDP cluster password |
+| \`HIVESERVER2_URL\` | `oozie-ops.yml` | HiveServer2 JDBC URL e.g. \`jdbc:hive2://cdp-edge-node:10000/default\` |
+| \`HIVE_USERNAME\` | `oozie-ops.yml` | Hive username |
+| \`HIVE_PASSWORD\` | `oozie-ops.yml` | Hive password |
 
 Set these in: **Settings → Secrets and variables → Actions**
+
+## Hive audit table setup
+
+Run this once on your cluster before enabling Hive audit logging:
+
+\`\`\`sql
+CREATE DATABASE IF NOT EXISTS ops_audit;
+
+CREATE TABLE IF NOT EXISTS ops_audit.cdp_ops_log (
+    timestamp     STRING,
+    environment   STRING,
+    operation     STRING,
+    job_id        STRING,
+    node_name     STRING,
+    triggered_by  STRING,
+    github_run_id STRING,
+    status        STRING
+) PARTITIONED BY (log_date STRING)
+  STORED AS ORC
+  TBLPROPERTIES ('transactional'='true');
+\`\`\`
+
+Each workflow run inserts one row. Partitioned by `log_date` (YYYY-MM-DD) for efficient querying.
+
+To query recent operations:
+
+\`\`\`sql
+SELECT * FROM ops_audit.cdp_ops_log
+WHERE log_date >= '2024-01-01'
+ORDER BY timestamp DESC;
+\`\`\`
