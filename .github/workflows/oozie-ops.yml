@@ -51,15 +51,67 @@ jobs:
           fi
           echo "Inputs validated successfully"
 
+      - name: Validate job ownership
+        env:
+          OOZIE_URL: ${{ secrets.OOZIE_URL }}
+          CDP_USERNAME: ${{ secrets.CDP_USERNAME }}
+          CDP_PASSWORD: ${{ secrets.CDP_PASSWORD }}
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          JOB_ID="${{ github.event.inputs.job_id }}"
+
+          if [ "$ENV" = "Prod" ]; then
+            EXPECTED_USER="oozie"
+          else
+            EXPECTED_USER="aaci_service_user1"
+          fi
+
+          echo "Environment: $ENV — expected job owner: $EXPECTED_USER"
+
+          if [ -z "$OOZIE_URL" ]; then
+            echo "WARN: OOZIE_URL secret not set — skipping ownership check (demo mode)"
+            exit 0
+          fi
+
+          JOB_INFO=$(curl -sf -u "$CDP_USERNAME:$CDP_PASSWORD" \
+            "$OOZIE_URL/v1/job/$JOB_ID?show=info" 2>/dev/null || echo "")
+
+          if [ -z "$JOB_INFO" ]; then
+            echo "WARN: Could not reach Oozie server — skipping ownership check (demo mode)"
+            exit 0
+          fi
+
+          JOB_USER=$(echo "$JOB_INFO" | jq -r '.user // empty')
+
+          if [ -z "$JOB_USER" ]; then
+            echo "ERROR: Could not determine job owner from Oozie API response"
+            exit 1
+          fi
+
+          if [ "$JOB_USER" != "$EXPECTED_USER" ]; then
+            echo "ERROR: Job $JOB_ID is owned by '$JOB_USER'"
+            echo "For '$ENV', only jobs owned by '$EXPECTED_USER' are managed through this workflow."
+            exit 1
+          fi
+
+          echo "Ownership validated: job owner '$JOB_USER' matches expected '$EXPECTED_USER' for $ENV"
+
       - name: Print approval summary
         run: |
+          ENV="${{ github.event.inputs.environment }}"
+          if [ "$ENV" = "Prod" ]; then
+            EXPECTED_USER="oozie"
+          else
+            EXPECTED_USER="aaci_service_user1"
+          fi
           echo "## Approval Request Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | **${{ github.event.inputs.environment }}** |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | **$ENV** |" >> $GITHUB_STEP_SUMMARY
           echo "| Operation | **${{ github.event.inputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
           echo "| Job ID | \`${{ github.event.inputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Node | ${{ github.event.inputs.node_name || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Expected job owner | \`$EXPECTED_USER\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Requested by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
   request-approval:
