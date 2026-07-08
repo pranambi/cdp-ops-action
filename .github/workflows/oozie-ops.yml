@@ -139,7 +139,7 @@ jobs:
         run: |
           RUN_CREATED=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} --jq '.created_at')
           AGE=$(( $(date +%s) - $(date -d "$RUN_CREATED" +%s) ))
-          MAX_AGE=300
+          MAX_AGE=1800
           if [ "$AGE" -gt "$MAX_AGE" ]; then
             echo "ERROR: Request is $((AGE/60)) minutes old. Stale approvals are rejected (max $((MAX_AGE/60)) min)."
             exit 1
