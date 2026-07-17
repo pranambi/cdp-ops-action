@@ -127,6 +127,10 @@ jobs:
       needs.validate.result == 'success' &&
       (needs.request-approval.result == 'success' || needs.request-approval.result == 'skipped')
     runs-on: ubuntu-latest
+    container:
+      image: ${{ vars.RUNNER_IMAGE }}
+      volumes:
+        - ${{ vars.AUDIT_HOST_PATH }}:/mnt/cdp-ops-audit
 
     steps:
       - name: Checkout code
@@ -198,21 +202,6 @@ jobs:
         env:
           AUDIT_LOG_DIR: ${{ vars.AUDIT_LOG_DIR || '/mnt/cdp-ops-audit' }}
         run: |
-          # ── Runner volume mount setup (one-time, done by you on the runner) ──
-          # Docker runner:
-          #   Add to docker run: -v /host/shared/cdp-ops-audit:/mnt/cdp-ops-audit
-          # Kubernetes runner (ARC):
-          #   Add to runner pod spec:
-          #     volumes:
-          #       - name: audit-logs
-          #         nfs:
-          #           server: <nfs-server>
-          #           path: /shared/cdp-ops-audit
-          #     volumeMounts:
-          #       - name: audit-logs
-          #         mountPath: /mnt/cdp-ops-audit
-          # ─────────────────────────────────────────────────────────────────────
-
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           ENV="${{ github.event.inputs.environment }}"
           OPERATION="${{ github.event.inputs.operation }}"
