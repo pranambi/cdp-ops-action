@@ -1,13 +1,13 @@
 # Audit Logs
 
-Auto-updated by GitHub Actions after every operation. Each file corresponds to a workflow.
+Auto-updated by GitHub Actions after every operation. Each subfolder corresponds to one workflow.
 
-| File | Workflow | Updated by |
+| Folder | File | Workflow |
 |---|---|---|
-| `audit_log_Prod.csv` | Oozie Operations — Prod runs | `oozie-ops.yml` |
-| `audit_log_Test-deploy.csv` | Oozie Operations — Test-deploy runs | `oozie-ops.yml` |
-| `audit_log_pr.csv` | Oozie Operations (PR-based) | `oozie-ops-pr.yml` |
-| `audit_log_scripts.csv` | Script Runner | `script-runner.yml` |
+| `oozie-ops/` | `audit_log_Prod.csv` | Oozie Operations — Prod runs |
+| `oozie-ops/` | `audit_log_Test-deploy.csv` | Oozie Operations — Test-deploy runs |
+| `oozie-ops-pr/` | `audit_log_pr.csv` | Oozie Operations (PR-based) |
+| `script-runner/` | `audit_log_scripts.csv` | Script Runner |
 
 ## Columns
 

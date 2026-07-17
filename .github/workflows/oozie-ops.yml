@@ -251,12 +251,12 @@ jobs:
             -e "$INSERT_SQL"
           echo "Hive audit record written to ops_audit.cdp_ops_log (partition: $LOG_DATE)"
 
-      - name: Update audit/audit_log_${{ github.event.inputs.environment }}.csv
+      - name: Update audit/oozie-ops/audit_log_${{ github.event.inputs.environment }}.csv
         if: always()
         run: |
           MAX_ROWS=3
           ENV="${{ github.event.inputs.environment }}"
-          AUDIT_FILE="audit/audit_log_${ENV}.csv"
+          AUDIT_FILE="audit/oozie-ops/audit_log_${ENV}.csv"
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
           NEW_ENTRY="$TIMESTAMP,${{ github.event.inputs.environment }},${{ github.event.inputs.operation }},${{ github.event.inputs.job_id }},${{ github.event.inputs.node_name || 'N/A' }},${{ github.actor }},$STATUS"

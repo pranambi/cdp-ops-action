@@ -97,11 +97,11 @@ jobs:
             bash "$SCRIPT"
           fi
 
-      - name: Update audit/audit_log_scripts.csv
+      - name: Update audit/script-runner/audit_log_scripts.csv
         if: always()
         run: |
           MAX_ROWS=3
-          AUDIT_FILE="audit/audit_log_scripts.csv"
+          AUDIT_FILE="audit/script-runner/audit_log_scripts.csv"
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
           NEW_ENTRY="$TIMESTAMP,${{ inputs.script }},${{ inputs.run_as }},${{ github.actor }},$STATUS"

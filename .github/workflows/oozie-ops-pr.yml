@@ -122,11 +122,11 @@ jobs:
           echo "Merged by   : ${{ github.actor }}"
           echo "================================"
 
-      - name: Update audit/audit_log_pr.csv
+      - name: Update audit/oozie-ops-pr/audit_log_pr.csv
         if: always()
         run: |
           MAX_ROWS=3
-          AUDIT_FILE="audit/audit_log_pr.csv"
+          AUDIT_FILE="audit/oozie-ops-pr/audit_log_pr.csv"
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           STATUS="${{ job.status }}"
           NEW_ENTRY="$TIMESTAMP,${{ steps.request.outputs.operation }},${{ steps.request.outputs.job_id }},${{ steps.request.outputs.node_name }},${{ github.actor }},${{ steps.request.outputs.reason }},$STATUS"
