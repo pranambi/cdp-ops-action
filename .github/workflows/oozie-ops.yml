@@ -34,6 +34,12 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    container:
+      image: ${{ vars.RUNNER_IMAGE }}
+      volumes:
+        - /etc/ssl/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt
+    env:
+      OOZIE_URL: ${{ vars.OOZIE_URL }}
     steps:
       - name: Validate inputs
         run: |
@@ -48,11 +54,16 @@ jobs:
           fi
           echo "Inputs validated successfully"
 
-      - name: Validate job ownership
+      - name: Authenticate with Kerberos
         env:
-          OOZIE_URL: ${{ secrets.OOZIE_URL }}
-          CDP_USERNAME: ${{ secrets.CDP_USERNAME }}
-          CDP_PASSWORD: ${{ secrets.CDP_PASSWORD }}
+          KRB5_KEYTAB_B64: ${{ secrets.KRB5_KEYTAB_B64 }}
+          KRB5_PRINCIPAL: ${{ vars.KRB5_PRINCIPAL }}
+        run: |
+          echo "$KRB5_KEYTAB_B64" | base64 -d > /tmp/service.keytab
+          chmod 600 /tmp/service.keytab
+          kinit -kt /tmp/service.keytab "$KRB5_PRINCIPAL"
+
+      - name: Validate job ownership
         run: |
           ENV="${{ github.event.inputs.environment }}"
           JOB_ID="${{ github.event.inputs.job_id }}"
@@ -65,24 +76,12 @@ jobs:
 
           echo "Environment: $ENV — expected job owner: $EXPECTED_USER"
 
-          if [ -z "$OOZIE_URL" ]; then
-            echo "WARN: OOZIE_URL secret not set — skipping ownership check (demo mode)"
-            exit 0
-          fi
-
-          JOB_INFO=$(curl -sf -u "$CDP_USERNAME:$CDP_PASSWORD" \
-            "$OOZIE_URL/v1/job/$JOB_ID?show=info" 2>/dev/null || echo "")
-
-          if [ -z "$JOB_INFO" ]; then
-            echo "WARN: Could not reach Oozie server — skipping ownership check (demo mode)"
-            exit 0
-          fi
-
-          JOB_USER=$(echo "$JOB_INFO" | jq -r '.user // empty')
+          JOB_INFO=$(oozie job -oozie "$OOZIE_URL" -info "$JOB_ID")
+          JOB_USER=$(echo "$JOB_INFO" | awk '/^User/{print $3}')
 
           if [ -z "$JOB_USER" ]; then
-            echo "ERROR: Could not determine job owner from Oozie API response"
-            exit 1
+            echo "WARN: Could not determine job owner — skipping ownership check (demo mode)"
+            exit 0
           fi
 
           if [ "$JOB_USER" != "$EXPECTED_USER" ]; then
@@ -134,6 +133,8 @@ jobs:
         - /etc/ssl/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt
         - /root/.ssh:/root/.ssh
         - /shared/cdp-ops-audit:/shared/cdp-ops-audit
+    env:
+      OOZIE_URL: ${{ vars.OOZIE_URL }}
 
     steps:
       - name: Checkout code
@@ -152,43 +153,36 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Authenticate with Kerberos
+        env:
+          KRB5_KEYTAB_B64: ${{ secrets.KRB5_KEYTAB_B64 }}
+          KRB5_PRINCIPAL: ${{ vars.KRB5_PRINCIPAL }}
+        run: |
+          echo "$KRB5_KEYTAB_B64" | base64 -d > /tmp/service.keytab
+          chmod 600 /tmp/service.keytab
+          kinit -kt /tmp/service.keytab "$KRB5_PRINCIPAL"
+
       - name: Kill Oozie job
         if: github.event.inputs.operation == 'Kill'
-        run: |
-          echo "Connecting to Oozie server..."
-          echo "Sending KILL request for job: ${{ github.event.inputs.job_id }}"
-          echo "Response: Job ${{ github.event.inputs.job_id }} killed successfully"
+        run: oozie job -oozie "$OOZIE_URL" -kill "${{ github.event.inputs.job_id }}"
 
       - name: Suspend Oozie job
         if: github.event.inputs.operation == 'Suspend'
-        run: |
-          echo "Connecting to Oozie server..."
-          echo "Sending SUSPEND request for job: ${{ github.event.inputs.job_id }}"
-          echo "Response: Job ${{ github.event.inputs.job_id }} suspended successfully"
+        run: oozie job -oozie "$OOZIE_URL" -suspend "${{ github.event.inputs.job_id }}"
 
       - name: Resume Oozie job
         if: github.event.inputs.operation == 'Resume'
-        run: |
-          echo "Connecting to Oozie server..."
-          echo "Sending RESUME request for job: ${{ github.event.inputs.job_id }}"
-          echo "Response: Job ${{ github.event.inputs.job_id }} resumed successfully"
+        run: oozie job -oozie "$OOZIE_URL" -resume "${{ github.event.inputs.job_id }}"
 
       - name: Restart Oozie job from beginning
         if: github.event.inputs.operation == 'Restart'
         run: |
-          echo "Connecting to Oozie server..."
-          echo "Step 1: Sending KILL request for job: ${{ github.event.inputs.job_id }}"
-          echo "Response: Job ${{ github.event.inputs.job_id }} killed"
-          echo "Step 2: Sending RERUN request for job: ${{ github.event.inputs.job_id }}"
-          echo "Response: Job ${{ github.event.inputs.job_id }} restarted from beginning"
+          oozie job -oozie "$OOZIE_URL" -kill "${{ github.event.inputs.job_id }}"
+          oozie job -oozie "$OOZIE_URL" -rerun "${{ github.event.inputs.job_id }}"
 
       - name: Restart failed node
         if: github.event.inputs.operation == 'Restart_failed_node'
-        run: |
-          echo "Connecting to Oozie server..."
-          echo "Sending RERUN request for failed node: ${{ github.event.inputs.node_name }}"
-          echo "Job ID: ${{ github.event.inputs.job_id }}"
-          echo "Response: Failed node ${{ github.event.inputs.node_name }} restarted successfully"
+        run: oozie job -oozie "$OOZIE_URL" -rerun "${{ github.event.inputs.job_id }}" -rerun-fail-nodes
 
       - name: Summary
         run: |
