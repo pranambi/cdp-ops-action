@@ -222,5 +222,5 @@ jobs:
             exit 0
           fi
 
-          flock -x "${AUDIT_FILE}.lock" -c "echo '$ENTRY' >> '$AUDIT_FILE'"
+          echo "$ENTRY" >> "$AUDIT_FILE"
           echo "Audit written → $AUDIT_FILE"
