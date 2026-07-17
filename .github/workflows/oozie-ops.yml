@@ -133,7 +133,7 @@ jobs:
         - /opt/cloudera:/opt/cloudera
         - /etc/ssl/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt
         - /root/.ssh:/root/.ssh
-        - /shared/cdp-ops-audit:/mnt/cdp-ops-audit
+        - /shared/cdp-ops-audit:/shared/cdp-ops-audit
 
     steps:
       - name: Checkout code
@@ -203,7 +203,7 @@ jobs:
       - name: Write audit log
         if: always()
         env:
-          AUDIT_LOG_DIR: ${{ vars.AUDIT_LOG_DIR || '/mnt/cdp-ops-audit' }}
+          AUDIT_LOG_DIR: ${{ vars.AUDIT_LOG_DIR || '/shared/cdp-ops-audit' }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           ENV="${{ github.event.inputs.environment }}"
