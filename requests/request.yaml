@@ -2,7 +2,6 @@
 # Raise a PR with your changes. Merging this PR will trigger the operation.
 
 operation: Kill           # Kill | Suspend | Resume | Restart | Restart_failed_node
-job_id: 1110023-240101000000000-oozie-oozi-W
-node_name:                # required only for Restart_failed_node, leave blank otherwise
+job_id: 0000001-240101120000000-oozie-oozi-W
+cr_number: CHG0012345     # optional — Change Request number for traceability
 reason: Briefly describe why this operation is needed
-random: one

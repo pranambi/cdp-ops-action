@@ -26,8 +26,8 @@ on:
         description: 'Oozie Job ID (e.g. 0000001-240101000000000-oozie-oozi-W)'
         required: true
         type: string
-      node_name:
-        description: 'Node name (required only for Restart_failed_node)'
+      cr_number:
+        description: 'Change Request number (e.g. CHG0012345) — optional, for traceability'
         required: false
         type: string
 
@@ -46,10 +46,6 @@ jobs:
           if [[ ! "${{ github.event.inputs.job_id }}" =~ ^[0-9]+-[0-9]+-oozie-oozi-[WCB]$ ]]; then
             echo "ERROR: Invalid Oozie Job ID format"
             echo "Expected format: 0000001-240101000000000-oozie-oozi-W"
-            exit 1
-          fi
-          if [ "${{ github.event.inputs.operation }}" = "Restart_failed_node" ] && [ -z "${{ github.event.inputs.node_name }}" ]; then
-            echo "ERROR: node_name is required for Restart_failed_node operation"
             exit 1
           fi
           echo "Inputs validated successfully"
@@ -71,7 +67,7 @@ jobs:
           if [ "$ENV" = "Prod" ]; then
             EXPECTED_USER="oozie"
           else
-            EXPECTED_USER="aaci_service_user1"
+            EXPECTED_USER="cicd_service_user1"
           fi
 
           echo "Environment: $ENV — expected job owner: $EXPECTED_USER"
@@ -98,7 +94,7 @@ jobs:
           if [ "$ENV" = "Prod" ]; then
             EXPECTED_USER="oozie"
           else
-            EXPECTED_USER="aaci_service_user1"
+            EXPECTED_USER="cicd_service_user1"
           fi
           echo "## Approval Request Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
@@ -106,7 +102,7 @@ jobs:
           echo "| Environment | **$ENV** |" >> $GITHUB_STEP_SUMMARY
           echo "| Operation | **${{ github.event.inputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
           echo "| Job ID | \`${{ github.event.inputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Node | ${{ github.event.inputs.node_name || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CR Number | ${{ github.event.inputs.cr_number || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Expected job owner | \`$EXPECTED_USER\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Requested by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
@@ -188,7 +184,7 @@ jobs:
         if: github.event.inputs.operation == 'Restart_failed_node'
         run: |
           oozie job -oozie "$OOZIE_URL" -rerun "${{ github.event.inputs.job_id }}" -rerun-fail-nodes
-          echo "Restart_failed_node executed on job ${{ github.event.inputs.job_id }}, node ${{ github.event.inputs.node_name }}"
+          echo "Restart_failed_node executed on job ${{ github.event.inputs.job_id }}"
 
       - name: Summary
         run: |
@@ -196,7 +192,7 @@ jobs:
           echo "Environment : ${{ github.event.inputs.environment }}"
           echo "Operation   : ${{ github.event.inputs.operation }}"
           echo "Job ID      : ${{ github.event.inputs.job_id }}"
-          echo "Node        : ${{ github.event.inputs.node_name || 'N/A' }}"
+          echo "CR Number   : ${{ github.event.inputs.cr_number || 'N/A' }}"
           echo "Triggered by: ${{ github.actor }}"
           echo "================================"
 
@@ -209,13 +205,13 @@ jobs:
           ENV="${{ github.event.inputs.environment }}"
           OPERATION="${{ github.event.inputs.operation }}"
           JOB_ID="${{ github.event.inputs.job_id }}"
-          NODE="${{ github.event.inputs.node_name || 'N/A' }}"
+          CR="${{ github.event.inputs.cr_number || 'N/A' }}"
           ACTOR="${{ github.actor }}"
           RUN_ID="${{ github.run_id }}"
           STATUS="${{ job.status }}"
 
           AUDIT_FILE="$AUDIT_LOG_DIR/oozie-ops-$(date -u +%Y-%m).log"
-          ENTRY="$TIMESTAMP | $ENV | $OPERATION | $JOB_ID | $NODE | $ACTOR | $STATUS | run:$RUN_ID"
+          ENTRY="$TIMESTAMP | $ENV | $OPERATION | $JOB_ID | $CR | $ACTOR | $STATUS | run:$RUN_ID"
 
           if [ ! -d "$AUDIT_LOG_DIR" ]; then
             echo "WARN: '$AUDIT_LOG_DIR' not mounted — skipping audit (configure volume on runner)"

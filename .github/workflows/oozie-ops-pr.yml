@@ -34,17 +34,17 @@ jobs:
 
           OPERATION=$(grep '^operation:' "$CHANGED" | awk '{print $2}' | tr -d '"')
           JOB_ID=$(grep '^job_id:' "$CHANGED" | awk '{print $2}' | tr -d '"')
-          NODE=$(grep '^node_name:' "$CHANGED" | awk '{print $2}' | tr -d '"')
+          CR=$(grep '^cr_number:' "$CHANGED" | cut -d':' -f2- | xargs)
           REASON=$(grep '^reason:' "$CHANGED" | cut -d':' -f2- | xargs)
 
           echo "operation=$OPERATION" >> $GITHUB_OUTPUT
           echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
-          echo "node_name=${NODE:-N/A}" >> $GITHUB_OUTPUT
+          echo "cr_number=${CR:-N/A}" >> $GITHUB_OUTPUT
           echo "reason=${REASON:-Not provided}" >> $GITHUB_OUTPUT
 
       - name: Validate inputs
         run: |
-          ALLOWED="operation job_id node_name reason"
+          ALLOWED="operation job_id cr_number reason"
           UNKNOWN=$(grep -E '^[a-zA-Z_]+:' "${{ steps.request.outputs.file }}" | awk -F: '{print $1}' | tr -d ' ' | while read KEY; do
             echo "$ALLOWED" | grep -qw "$KEY" || echo "$KEY"
           done)
@@ -59,10 +59,6 @@ jobs:
             echo "Expected format: 0000001-240101000000000-oozie-oozi-W"
             exit 1
           fi
-          if [ "${{ steps.request.outputs.operation }}" = "Restart_failed_node" ] && [ "${{ steps.request.outputs.node_name }}" = "N/A" ]; then
-            echo "ERROR: node_name is required for Restart_failed_node"
-            exit 1
-          fi
           echo "Inputs validated successfully"
 
       - name: Print job summary
@@ -72,7 +68,7 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Operation | **${{ steps.request.outputs.operation }}** |" >> $GITHUB_STEP_SUMMARY
           echo "| Job ID | \`${{ steps.request.outputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Node | ${{ steps.request.outputs.node_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CR Number | ${{ steps.request.outputs.cr_number }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Reason | ${{ steps.request.outputs.reason }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Merged by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Request file | ${{ steps.request.outputs.file }} |" >> $GITHUB_STEP_SUMMARY
@@ -115,14 +111,14 @@ jobs:
         if: steps.request.outputs.operation == 'Restart_failed_node'
         run: |
           oozie job -oozie "$OOZIE_URL" -rerun "${{ steps.request.outputs.job_id }}" -rerun-fail-nodes
-          echo "Restart_failed_node executed on job ${{ steps.request.outputs.job_id }}, node ${{ steps.request.outputs.node_name }}"
+          echo "Restart_failed_node executed on job ${{ steps.request.outputs.job_id }}"
 
       - name: Summary
         run: |
           echo "================================"
           echo "Operation   : ${{ steps.request.outputs.operation }}"
           echo "Job ID      : ${{ steps.request.outputs.job_id }}"
-          echo "Node        : ${{ steps.request.outputs.node_name }}"
+          echo "CR Number   : ${{ steps.request.outputs.cr_number }}"
           echo "Reason      : ${{ steps.request.outputs.reason }}"
           echo "Merged by   : ${{ github.actor }}"
           echo "================================"
@@ -135,7 +131,7 @@ jobs:
           STATUS="${{ job.status }}"
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           AUDIT_FILE="$AUDIT_LOG_DIR/oozie-ops-pr-$(date -u +%Y-%m).log"
-          ENTRY="$TIMESTAMP | ${{ steps.request.outputs.operation }} | ${{ steps.request.outputs.job_id }} | ${{ steps.request.outputs.node_name }} | ${{ github.actor }} | ${{ steps.request.outputs.reason }} | $STATUS | $RUN_URL"
+          ENTRY="$TIMESTAMP | ${{ steps.request.outputs.operation }} | ${{ steps.request.outputs.job_id }} | ${{ steps.request.outputs.cr_number }} | ${{ github.actor }} | ${{ steps.request.outputs.reason }} | $STATUS | $RUN_URL"
 
           if [ ! -d "$AUDIT_LOG_DIR" ]; then
             echo "WARN: '$AUDIT_LOG_DIR' not mounted — skipping audit (configure volume on runner)"
@@ -143,7 +139,7 @@ jobs:
           fi
 
           if [ ! -f "$AUDIT_FILE" ]; then
-            echo "# timestamp | operation | job_id | node | actor | reason | status | run_url" > "$AUDIT_FILE"
+            echo "# timestamp | operation | job_id | cr_number | actor | reason | status | run_url" > "$AUDIT_FILE"
           fi
 
           echo "$ENTRY" >> "$AUDIT_FILE"
