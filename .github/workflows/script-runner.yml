@@ -58,10 +58,7 @@ jobs:
     container:
       image: ${{ vars.RUNNER_IMAGE }}
       volumes:
-        - /opt/cloudera:/opt/cloudera
-        - /etc/ssl/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt
-        - /root/.ssh:/root/.ssh
-        - /shared/cdp-ops-audit:/shared/cdp-ops-audit
+        - /etc/hosts:/etc/hosts
 
     steps:
       - name: Checkout code
