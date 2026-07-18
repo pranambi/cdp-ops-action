@@ -17,6 +17,8 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      approval_requested_at: ${{ steps.timestamp.outputs.ts }}
 
     steps:
       - name: Checkout code
@@ -42,6 +44,10 @@ jobs:
           echo "| Run as | \`${{ inputs.run_as }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
+      - name: Record approval request time
+        id: timestamp
+        run: echo "ts=$(date +%s)" >> $GITHUB_OUTPUT
+
   request-approval:
     needs: validate
     runs-on: ubuntu-latest
@@ -53,7 +59,7 @@ jobs:
           echo "Approval granted for: ${{ inputs.script }} as ${{ inputs.run_as }}"
 
   execute:
-    needs: request-approval
+    needs: [validate, request-approval]
     runs-on: ubuntu-latest
     container:
       image: ${{ vars.RUNNER_IMAGE }}
@@ -64,21 +70,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for stale approval
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MAX_AGE: 300
+      - name: Check approval is not stale
         run: |
-          RUN_ID=${{ github.run_id }}
-          CREATED_AT=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID --jq '.created_at')
-          CREATED_TS=$(date -d "$CREATED_AT" +%s 2>/dev/null || date -jf "%Y-%m-%dT%H:%M:%SZ" "$CREATED_AT" +%s)
-          NOW=$(date +%s)
-          AGE=$((NOW - CREATED_TS))
-          echo "Workflow age: ${AGE}s (max allowed: ${MAX_AGE}s)"
+          REQUESTED_AT=${{ needs.validate.outputs.approval_requested_at }}
+          AGE=$(( $(date +%s) - REQUESTED_AT ))
+          MAX_AGE=3600
           if [ "$AGE" -gt "$MAX_AGE" ]; then
-            echo "ERROR: Approval is stale (${AGE}s old). Re-trigger the workflow."
+            echo "ERROR: Approval is $((AGE/60)) min old — rejected (max $((MAX_AGE/60)) min). Re-trigger the workflow."
             exit 1
           fi
+          echo "Approval age: $((AGE/60)) min $((AGE%60)) sec — within limit."
 
       - name: Make script executable
         run: chmod +x "scripts/${{ inputs.script }}"
