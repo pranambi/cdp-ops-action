@@ -75,6 +75,7 @@ jobs:
           echo "Environment: $ENV — expected job owner: $EXPECTED_USER"
 
           JOB_INFO=$(oozie job -oozie "$OOZIE_URL" -info "$JOB_ID")
+          echo "$JOB_INFO"
           JOB_USER=$(echo "$JOB_INFO" | awk '/^User/{print $3}')
 
           if [ -z "$JOB_USER" ]; then
