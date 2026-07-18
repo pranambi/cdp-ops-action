@@ -74,13 +74,13 @@ jobs:
 
           echo "Environment: $ENV — expected job owner: $EXPECTED_USER"
 
-          JOB_INFO=$(oozie job -oozie "$OOZIE_URL" -info "$JOB_ID")
-          JOB_USER=$(echo "$JOB_INFO" | awk '/^User/{print $3}')
-
-          if [ -z "$JOB_USER" ]; then
-            echo "WARN: Could not determine job owner — skipping ownership check (demo mode)"
-            exit 0
+          if ! JOB_INFO=$(oozie job -oozie "$OOZIE_URL" -info "$JOB_ID" 2>&1); then
+            echo "ERROR: Job not found on this cluster: $JOB_ID"
+            echo "$JOB_INFO"
+            exit 1
           fi
+          echo "$JOB_INFO"
+          JOB_USER=$(echo "$JOB_INFO" | awk '/^User/{print $3}')
 
           if [ "$JOB_USER" != "$EXPECTED_USER" ]; then
             echo "ERROR: Job $JOB_ID is owned by '$JOB_USER'"
