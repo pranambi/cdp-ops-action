@@ -40,6 +40,8 @@ jobs:
         - /etc/hosts:/etc/hosts
     env:
       OOZIE_URL: ${{ vars.OOZIE_URL }}
+    outputs:
+      approval_requested_at: ${{ steps.timestamp.outputs.ts }}
     steps:
       - name: Validate inputs
         run: |
@@ -106,6 +108,10 @@ jobs:
           echo "| Expected job owner | \`$EXPECTED_USER\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Requested by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
 
+      - name: Record approval request time
+        id: timestamp
+        run: echo "ts=$(date +%s)" >> $GITHUB_OUTPUT
+
   request-approval:
     needs: validate
     if: contains(fromJSON('["Kill", "Restart"]'), github.event.inputs.operation)
@@ -133,18 +139,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check request is not stale
+      - name: Check approval is not stale
         run: |
-          RUN_CREATED=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} --jq '.created_at')
-          AGE=$(( $(date +%s) - $(date -d "$RUN_CREATED" +%s) ))
-          MAX_AGE=300
+          REQUESTED_AT=${{ needs.validate.outputs.approval_requested_at }}
+          AGE=$(( $(date +%s) - REQUESTED_AT ))
+          MAX_AGE=3600
           if [ "$AGE" -gt "$MAX_AGE" ]; then
-            echo "ERROR: Request is $((AGE/60)) minutes old. Stale approvals are rejected (max $((MAX_AGE/60)) min)."
+            echo "ERROR: Approval is $((AGE/60)) min old — rejected (max $((MAX_AGE/60)) min). Re-trigger the workflow."
             exit 1
           fi
-          echo "Request age: $((AGE/60)) min $((AGE%60)) sec — within limit."
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "Approval age: $((AGE/60)) min $((AGE%60)) sec — within limit."
 
       - name: Authenticate with Kerberos
         env:
